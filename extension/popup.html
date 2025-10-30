@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Webページリマインダー</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Webページリマインダー</h1>
+
+    <!-- リマインダー登録フォーム -->
+    <section class="register-section">
+      <h2>リマインダー登録</h2>
+      <form id="registerForm">
+        <div class="form-group">
+          <label for="urlInput">URL</label>
+          <input
+            type="text"
+            id="urlInput"
+            placeholder="https://example.com"
+            required
+          >
+        </div>
+        <div class="form-group">
+          <label for="textInput">リマインダー内容</label>
+          <textarea
+            id="textInput"
+            placeholder="やるべきことを入力してください"
+            rows="3"
+            required
+          ></textarea>
+        </div>
+        <button type="submit" id="registerBtn">登録</button>
+      </form>
+      <div id="message" class="message"></div>
+    </section>
+
+    <!-- リマインダー一覧 -->
+    <section class="list-section">
+      <h2>登録済みリマインダー</h2>
+      <div id="remindersList" class="reminders-list">
+        <!-- リマインダーがここに動的に追加されます -->
+      </div>
+    </section>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
