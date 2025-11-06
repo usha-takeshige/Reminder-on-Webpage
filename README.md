@@ -4,8 +4,8 @@ Webページリマインダー Chrome拡張機能 - 特定のWebページにア�
 
 ## 機能概要
 
-- 特定のURLにアクセスした時に自動的にリマインダーを表示
-- URL前方一致方式で柔軟なマッチング
+- 特定のドメインにアクセスした時に自動的にリマインダーを表示
+- ドメイン一致方式でシンプルなマッチング
 - 直感的なポップアップUIでリマインダーの登録・管理
 - 複数リマインダーの同時表示
 - 個別完了・一括閉じる機能
@@ -46,13 +46,13 @@ Reminder-on-Webpage/
 ### リマインダーの登録
 
 1. Chrome拡張機能アイコンをクリック
-2. URLフィールドに現在のページURLが自動入力される（編集可能）
+2. URLフィールドに現在のページのドメインが自動入力される（編集可能）
 3. リマインダー内容を入力
 4. 「登録」ボタンをクリック
 
 ### リマインダーの表示
 
-- 登録したURLと前方一致するページにアクセスすると、画面右上にリマインダーが表示される
+- 登録したドメインと一致するページにアクセスすると、画面右上にリマインダーが表示される
 - 複数のリマインダーがある場合は、すべて一覧表示される
 - **非ブロッキング設計**: リマインダー表示中もWebページの操作が可能
 - リマインダーを確認しながら、ページのスクロール、クリック、入力などが自由に行える
@@ -70,16 +70,15 @@ Reminder-on-Webpage/
 
 ### URL照合方式
 
-前方一致方式を採用:
-```javascript
-currentUrl.startsWith(registeredUrl)
-```
+ドメイン一致方式を採用:
+- 登録URLと現在のURLのドメイン（プロトコル + ホスト名）を比較
 
 **例:**
-- 登録URL: `https://example.com/shop`
+- 登録URL: `https://example.com`
 - マッチ: `https://example.com/shop/products`
-- マッチ: `https://example.com/shop/cart`
-- 非マッチ: `https://example.com/blog`
+- マッチ: `https://example.com/blog`
+- 非マッチ: `https://sub.example.com` (サブドメインは別扱い)
+- 非マッチ: `https://other-site.com`
 
 ### データ構造
 
@@ -88,7 +87,7 @@ currentUrl.startsWith(registeredUrl)
   reminders: [
     {
       id: "uuid",                          // ユニークID
-      url: "https://example.com/shop",     // 照合用URL
+      url: "https://example.com",          // 照合用URL（通常はドメインのみ）
       text: "クーポンコードを入力すること",  // リマインダー内容
       createdAt: "2025-10-31T10:00:00Z"   // 作成日時（ISO 8601）
     }
@@ -139,7 +138,7 @@ currentUrl.startsWith(registeredUrl)
 
 ### リマインダーが表示されない
 
-- URLが前方一致しているか確認
+- URLのドメインが一致しているか確認（サブドメインは別扱い）
 - 開発者ツールのコンソールでエラーを確認
 - `chrome.storage.local` にデータが保存されているか確認:
   ```javascript
@@ -177,5 +176,6 @@ currentUrl.startsWith(registeredUrl)
 - 表示回数制限
 - エクスポート/インポート機能
 - スヌーズ機能
-- 完全一致/ドメイン一致/正規表現対応
+- 前方一致/完全一致/正規表現対応の追加
+- サブドメイン対応オプション
 - chrome.storage.sync による複数デバイス同期

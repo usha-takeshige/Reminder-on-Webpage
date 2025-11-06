@@ -15,6 +15,17 @@ function generateUUID() {
   });
 }
 
+// URLからドメインを抽出（プロトコル＋ホスト名）
+function extractDomain(url) {
+  try {
+    const urlObj = new URL(url);
+    return `${urlObj.protocol}//${urlObj.hostname}`;
+  } catch (error) {
+    console.error('URLの解析に失敗しました:', url, error);
+    return null;
+  }
+}
+
 // メッセージ表示関数
 function showMessage(text, type = 'success') {
   messageDiv.textContent = text;
@@ -33,12 +44,17 @@ function validateForm() {
   registerBtn.disabled = !urlValue || !textValue;
 }
 
-// 現在のタブのURL取得
+// 現在のタブのドメイン取得
 async function getCurrentTabUrl() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab && tab.url) {
-      urlInput.value = tab.url;
+      const domain = extractDomain(tab.url);
+      if (domain) {
+        urlInput.value = domain;
+      } else {
+        urlInput.value = tab.url; // ドメイン抽出失敗時はフルURLを使用
+      }
       validateForm();
     }
   } catch (error) {

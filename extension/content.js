@@ -8,6 +8,17 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// URLからドメインを抽出（プロトコル＋ホスト名）
+function extractDomain(url) {
+  try {
+    const urlObj = new URL(url);
+    return `${urlObj.protocol}//${urlObj.hostname}`;
+  } catch (error) {
+    console.error('URLの解析に失敗しました:', url, error);
+    return null;
+  }
+}
+
 // リマインダーポップアップを作成
 function createReminderPopup(reminders) {
   // 既存のポップアップを削除
@@ -124,10 +135,16 @@ async function getMatchingReminders(currentUrl) {
     const result = await chrome.storage.local.get(['reminders']);
     const reminders = result.reminders || [];
 
-    // 前方一致でフィルタリング
-    const matchingReminders = reminders.filter(reminder =>
-      currentUrl.startsWith(reminder.url)
-    );
+    const currentDomain = extractDomain(currentUrl);
+    if (!currentDomain) {
+      return [];
+    }
+
+    // ドメイン一致でフィルタリング
+    const matchingReminders = reminders.filter(reminder => {
+      const reminderDomain = extractDomain(reminder.url);
+      return reminderDomain && currentDomain === reminderDomain;
+    });
 
     return matchingReminders;
   } catch (error) {
