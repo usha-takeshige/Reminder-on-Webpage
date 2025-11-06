@@ -63,7 +63,7 @@ async function getCurrentTabUrl() {
 }
 
 // リマインダー登録
-async function registerReminder(url, text) {
+async function registerReminder(url, text, matchType) {
   try {
     const result = await chrome.storage.local.get(['reminders']);
     const reminders = result.reminders || [];
@@ -72,6 +72,7 @@ async function registerReminder(url, text) {
       id: generateUUID(),
       url: url.trim(),
       text: text.trim(),
+      matchType: matchType || 'domain', // デフォルトはドメイン一致
       createdAt: new Date().toISOString()
     };
 
@@ -154,8 +155,19 @@ async function displayReminders() {
         const createdDate = new Date(reminder.createdAt);
         date.textContent = `登録日時: ${createdDate.toLocaleString('ja-JP')}`;
 
+        // マッチング方式を表示
+        const matchType = document.createElement('span');
+        matchType.className = `reminder-match-type ${reminder.matchType || 'domain'}`;
+        const matchTypeLabels = {
+          'domain': 'ドメイン一致',
+          'prefix': '前方一致',
+          'exact': '完全一致'
+        };
+        matchType.textContent = matchTypeLabels[reminder.matchType || 'domain'];
+
         content.appendChild(text);
         content.appendChild(date);
+        content.appendChild(matchType);
 
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'delete-btn';
@@ -189,13 +201,14 @@ registerForm.addEventListener('submit', async (e) => {
 
   const url = urlInput.value.trim();
   const text = textInput.value.trim();
+  const matchType = document.querySelector('input[name="matchType"]:checked').value;
 
   if (!url || !text) {
     showMessage('URLとリマインダー内容を入力してください', 'error');
     return;
   }
 
-  const success = await registerReminder(url, text);
+  const success = await registerReminder(url, text, matchType);
 
   if (success) {
     showMessage('リマインダーを登録しました', 'success');
@@ -207,12 +220,37 @@ registerForm.addEventListener('submit', async (e) => {
   }
 });
 
+// 既存リマインダーのマイグレーション（matchTypeフィールドがない場合に追加）
+async function migrateReminders() {
+  try {
+    const result = await chrome.storage.local.get(['reminders']);
+    const reminders = result.reminders || [];
+
+    let needsUpdate = false;
+    const migratedReminders = reminders.map(reminder => {
+      if (!reminder.matchType) {
+        needsUpdate = true;
+        return { ...reminder, matchType: 'domain' }; // デフォルトはドメイン一致
+      }
+      return reminder;
+    });
+
+    if (needsUpdate) {
+      await chrome.storage.local.set({ reminders: migratedReminders });
+      console.log('リマインダーのマイグレーションが完了しました');
+    }
+  } catch (error) {
+    console.error('マイグレーションに失敗しました:', error);
+  }
+}
+
 // 入力変更時のバリデーション
 urlInput.addEventListener('input', validateForm);
 textInput.addEventListener('input', validateForm);
 
 // 初期化
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  await migrateReminders(); // マイグレーション実行
   getCurrentTabUrl();
   displayReminders();
   validateForm();

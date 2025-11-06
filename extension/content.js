@@ -129,22 +129,38 @@ async function completeReminder(id, itemElement) {
   }
 }
 
+// URLがリマインダーとマッチするか判定
+function isUrlMatch(currentUrl, reminder) {
+  const matchType = reminder.matchType || 'domain'; // デフォルトはドメイン一致
+
+  switch (matchType) {
+    case 'exact':
+      // 完全一致
+      return currentUrl === reminder.url;
+
+    case 'prefix':
+      // 前方一致
+      return currentUrl.startsWith(reminder.url);
+
+    case 'domain':
+    default:
+      // ドメイン一致
+      const currentDomain = extractDomain(currentUrl);
+      const reminderDomain = extractDomain(reminder.url);
+      return currentDomain && reminderDomain && currentDomain === reminderDomain;
+  }
+}
+
 // 現在のURLに一致するリマインダーを取得
 async function getMatchingReminders(currentUrl) {
   try {
     const result = await chrome.storage.local.get(['reminders']);
     const reminders = result.reminders || [];
 
-    const currentDomain = extractDomain(currentUrl);
-    if (!currentDomain) {
-      return [];
-    }
-
-    // ドメイン一致でフィルタリング
-    const matchingReminders = reminders.filter(reminder => {
-      const reminderDomain = extractDomain(reminder.url);
-      return reminderDomain && currentDomain === reminderDomain;
-    });
+    // 各リマインダーのmatchTypeに応じてフィルタリング
+    const matchingReminders = reminders.filter(reminder =>
+      isUrlMatch(currentUrl, reminder)
+    );
 
     return matchingReminders;
   } catch (error) {

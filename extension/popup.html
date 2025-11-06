@@ -32,6 +32,26 @@
             required
           ></textarea>
         </div>
+        <div class="form-group">
+          <label>URL照合方式</label>
+          <div class="match-type-options">
+            <label class="radio-label">
+              <input type="radio" name="matchType" value="domain" checked>
+              <span>ドメイン一致</span>
+              <small>同じドメインの全ページで表示</small>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="matchType" value="prefix">
+              <span>前方一致</span>
+              <small>指定URLで始まるページで表示</small>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="matchType" value="exact">
+              <span>完全一致</span>
+              <small>指定URLと完全に一致するページのみ</small>
+            </label>
+          </div>
+        </div>
         <button type="submit" id="registerBtn">登録</button>
       </form>
       <div id="message" class="message"></div>
