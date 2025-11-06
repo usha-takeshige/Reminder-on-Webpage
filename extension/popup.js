@@ -6,6 +6,21 @@ const registerForm = document.getElementById('registerForm');
 const messageDiv = document.getElementById('message');
 const remindersList = document.getElementById('remindersList');
 
+// 編集関連のDOM要素
+const editSection = document.getElementById('editSection');
+const registerSection = document.querySelector('.register-section');
+const listSection = document.querySelector('.list-section');
+const editUrlInput = document.getElementById('editUrlInput');
+const editTextInput = document.getElementById('editTextInput');
+const editCreatedAt = document.getElementById('editCreatedAt');
+const saveEditBtn = document.getElementById('saveEditBtn');
+const cancelEditBtn = document.getElementById('cancelEditBtn');
+const editForm = document.getElementById('editForm');
+const editMessageDiv = document.getElementById('editMessage');
+
+// 編集中のリマインダーID
+let currentEditingId = null;
+
 // UUID生成関数
 function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -87,6 +102,103 @@ async function deleteReminder(id) {
   }
 }
 
+// IDでリマインダーを取得
+async function getReminderById(id) {
+  try {
+    const result = await chrome.storage.local.get(['reminders']);
+    const reminders = result.reminders || [];
+    return reminders.find(reminder => reminder.id === id);
+  } catch (error) {
+    console.error('リマインダーの取得に失敗しました:', error);
+    return null;
+  }
+}
+
+// リマインダーを更新
+async function updateReminder(id, newUrl, newText) {
+  try {
+    const result = await chrome.storage.local.get(['reminders']);
+    const reminders = result.reminders || [];
+
+    const index = reminders.findIndex(r => r.id === id);
+
+    if (index === -1) {
+      throw new Error('リマインダーが見つかりません');
+    }
+
+    // URLとテキストのみ更新（id, createdAtは保持）
+    reminders[index].url = newUrl.trim();
+    reminders[index].text = newText.trim();
+
+    await chrome.storage.local.set({ reminders });
+
+    return true;
+  } catch (error) {
+    console.error('リマインダーの更新に失敗しました:', error);
+    throw error;
+  }
+}
+
+// 編集フォームを表示
+async function showEditForm(reminderId) {
+  const reminder = await getReminderById(reminderId);
+
+  if (!reminder) {
+    showMessage('リマインダーが見つかりません', 'error');
+    return;
+  }
+
+  // フォームに値を設定
+  editUrlInput.value = reminder.url;
+  editTextInput.value = reminder.text;
+  const createdDate = new Date(reminder.createdAt);
+  editCreatedAt.textContent = createdDate.toLocaleString('ja-JP');
+
+  // 編集中のIDを保持
+  currentEditingId = reminderId;
+
+  // UI切り替え
+  editSection.style.display = 'block';
+  registerSection.style.display = 'none';
+  listSection.style.display = 'none';
+
+  // バリデーション実行
+  validateEditForm();
+}
+
+// 編集をキャンセル
+function cancelEdit() {
+  // 編集中IDをクリア
+  currentEditingId = null;
+
+  // UI切り替え
+  editSection.style.display = 'none';
+  registerSection.style.display = 'block';
+  listSection.style.display = 'block';
+
+  // フォームをリセット
+  editForm.reset();
+  editMessageDiv.className = 'message';
+}
+
+// 編集フォームのバリデーション
+function validateEditForm() {
+  const urlValue = editUrlInput.value.trim();
+  const textValue = editTextInput.value.trim();
+
+  saveEditBtn.disabled = !urlValue || !textValue;
+}
+
+// 編集メッセージ表示関数
+function showEditMessage(text, type = 'success') {
+  editMessageDiv.textContent = text;
+  editMessageDiv.className = `message ${type}`;
+
+  setTimeout(() => {
+    editMessageDiv.className = 'message';
+  }, 3000);
+}
+
 // リマインダー一覧表示
 async function displayReminders() {
   try {
@@ -141,6 +253,19 @@ async function displayReminders() {
         content.appendChild(text);
         content.appendChild(date);
 
+        // ボタングループ
+        const buttonsDiv = document.createElement('div');
+        buttonsDiv.className = 'reminder-buttons';
+
+        // 編集ボタン
+        const editBtn = document.createElement('button');
+        editBtn.className = 'edit-btn';
+        editBtn.textContent = '編集';
+        editBtn.addEventListener('click', () => {
+          showEditForm(reminder.id);
+        });
+
+        // 削除ボタン
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'delete-btn';
         deleteBtn.textContent = '削除';
@@ -154,8 +279,11 @@ async function displayReminders() {
           }
         });
 
+        buttonsDiv.appendChild(editBtn);
+        buttonsDiv.appendChild(deleteBtn);
+
         item.appendChild(content);
-        item.appendChild(deleteBtn);
+        item.appendChild(buttonsDiv);
         urlGroup.appendChild(item);
       });
 
@@ -194,6 +322,52 @@ registerForm.addEventListener('submit', async (e) => {
 // 入力変更時のバリデーション
 urlInput.addEventListener('input', validateForm);
 textInput.addEventListener('input', validateForm);
+
+// 編集フォーム送信ハンドラ
+editForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const url = editUrlInput.value.trim();
+  const text = editTextInput.value.trim();
+
+  if (!url || !text) {
+    showEditMessage('URLとリマインダー内容を入力してください', 'error');
+    return;
+  }
+
+  if (!currentEditingId) {
+    showEditMessage('編集対象のリマインダーが見つかりません', 'error');
+    return;
+  }
+
+  try {
+    await updateReminder(currentEditingId, url, text);
+    showEditMessage('リマインダーを更新しました', 'success');
+
+    // 少し待ってから一覧に戻る
+    setTimeout(() => {
+      cancelEdit();
+      displayReminders();
+    }, 1000);
+  } catch (error) {
+    if (error.message === 'リマインダーが見つかりません') {
+      showEditMessage('このリマインダーは既に削除されています', 'error');
+      setTimeout(() => {
+        cancelEdit();
+        displayReminders();
+      }, 2000);
+    } else {
+      showEditMessage('更新に失敗しました', 'error');
+    }
+  }
+});
+
+// 編集キャンセルボタン
+cancelEditBtn.addEventListener('click', cancelEdit);
+
+// 編集フォームの入力変更時のバリデーション
+editUrlInput.addEventListener('input', validateEditForm);
+editTextInput.addEventListener('input', validateEditForm);
 
 // 初期化
 document.addEventListener('DOMContentLoaded', () => {
