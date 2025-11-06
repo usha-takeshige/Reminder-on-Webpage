@@ -57,6 +57,39 @@
       <div id="message" class="message"></div>
     </section>
 
+    <!-- リマインダー編集フォーム -->
+    <section id="editSection" class="edit-section" style="display: none;">
+      <h2>リマインダーを編集</h2>
+      <form id="editForm">
+        <div class="form-group">
+          <label for="editUrlInput">URL</label>
+          <input
+            type="text"
+            id="editUrlInput"
+            placeholder="https://example.com"
+            required
+          >
+        </div>
+        <div class="form-group">
+          <label for="editTextInput">リマインダー内容</label>
+          <textarea
+            id="editTextInput"
+            placeholder="やるべきことを入力してください"
+            rows="3"
+            required
+          ></textarea>
+        </div>
+        <div class="edit-info">
+          <small>登録日時: <span id="editCreatedAt"></span></small>
+        </div>
+        <div class="edit-actions">
+          <button type="submit" id="saveEditBtn">保存</button>
+          <button type="button" id="cancelEditBtn">キャンセル</button>
+        </div>
+      </form>
+      <div id="editMessage" class="message"></div>
+    </section>
+
     <!-- リマインダー一覧 -->
     <section class="list-section">
       <h2>登録済みリマインダー</h2>
