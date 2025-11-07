@@ -74,6 +74,52 @@ h2 {
   min-height: 60px;
 }
 
+/* マッチングタイプ選択 */
+.match-type-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.radio-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.radio-label:hover {
+  background-color: #f8f9fa;
+  border-color: #1a73e8;
+}
+
+.radio-label input[type="radio"] {
+  margin-top: 2px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.radio-label > span {
+  font-weight: 500;
+  color: #333;
+  display: block;
+}
+
+.radio-label small {
+  display: block;
+  color: #666;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.radio-label input[type="radio"]:checked + span {
+  color: #1a73e8;
+}
+
 #registerBtn {
   width: 100%;
   padding: 10px;
@@ -187,6 +233,30 @@ h2 {
   color: #888;
 }
 
+.reminder-match-type {
+  display: inline-block;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+.reminder-match-type.domain {
+  background-color: #d1ecf1;
+  color: #0c5460;
+}
+
+.reminder-match-type.prefix {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.reminder-match-type.exact {
+  background-color: #d4edda;
+  color: #155724;
+}
+
 .delete-btn {
   padding: 4px 12px;
   background-color: #dc3545;
@@ -232,4 +302,87 @@ h2 {
 .reminders-list::-webkit-scrollbar-thumb:hover,
 .list-section::-webkit-scrollbar-thumb:hover {
   background: #999;
+}
+
+/* 編集セクション */
+.edit-section {
+  background: white;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* 編集情報 */
+.edit-info {
+  margin-bottom: 12px;
+  color: #888;
+  font-size: 12px;
+}
+
+/* 編集アクションボタン */
+.edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.edit-actions button {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+#saveEditBtn {
+  background-color: #1a73e8;
+  color: white;
+}
+
+#saveEditBtn:hover {
+  background-color: #1557b0;
+}
+
+#saveEditBtn:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+#cancelEditBtn {
+  background-color: #f1f3f4;
+  color: #5f6368;
+}
+
+#cancelEditBtn:hover {
+  background-color: #e8eaed;
+}
+
+/* 編集ボタン */
+.edit-btn {
+  padding: 4px 12px;
+  background-color: #1a73e8;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+
+.edit-btn:hover {
+  background-color: #1557b0;
+}
+
+/* リマインダーアイテムのボタングループ */
+.reminder-buttons {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
 }

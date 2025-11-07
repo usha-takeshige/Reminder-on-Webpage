@@ -32,9 +32,82 @@
             required
           ></textarea>
         </div>
+        <div class="form-group">
+          <label>URL照合方式</label>
+          <div class="match-type-options">
+            <label class="radio-label">
+              <input type="radio" name="matchType" value="domain" checked>
+              <span>ドメイン一致</span>
+              <small>同じドメインの全ページで表示</small>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="matchType" value="prefix">
+              <span>前方一致</span>
+              <small>指定URLで始まるページで表示</small>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="matchType" value="exact">
+              <span>完全一致</span>
+              <small>指定URLと完全に一致するページのみ</small>
+            </label>
+          </div>
+        </div>
         <button type="submit" id="registerBtn">登録</button>
       </form>
       <div id="message" class="message"></div>
+    </section>
+
+    <!-- リマインダー編集フォーム -->
+    <section id="editSection" class="edit-section" style="display: none;">
+      <h2>リマインダーを編集</h2>
+      <form id="editForm">
+        <div class="form-group">
+          <label for="editUrlInput">URL</label>
+          <input
+            type="text"
+            id="editUrlInput"
+            placeholder="https://example.com"
+            required
+          >
+        </div>
+        <div class="form-group">
+          <label for="editTextInput">リマインダー内容</label>
+          <textarea
+            id="editTextInput"
+            placeholder="やるべきことを入力してください"
+            rows="3"
+            required
+          ></textarea>
+        </div>
+        <div class="form-group">
+          <label>URL照合方式</label>
+          <div class="match-type-options">
+            <label class="radio-label">
+              <input type="radio" name="editMatchType" value="domain">
+              <span>ドメイン一致</span>
+              <small>同じドメインの全ページで表示</small>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="editMatchType" value="prefix">
+              <span>前方一致</span>
+              <small>指定URLで始まるページで表示</small>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="editMatchType" value="exact">
+              <span>完全一致</span>
+              <small>指定URLと完全に一致するページのみ</small>
+            </label>
+          </div>
+        </div>
+        <div class="edit-info">
+          <small>登録日時: <span id="editCreatedAt"></span></small>
+        </div>
+        <div class="edit-actions">
+          <button type="submit" id="saveEditBtn">保存</button>
+          <button type="button" id="cancelEditBtn">キャンセル</button>
+        </div>
+      </form>
+      <div id="editMessage" class="message"></div>
     </section>
 
     <!-- リマインダー一覧 -->

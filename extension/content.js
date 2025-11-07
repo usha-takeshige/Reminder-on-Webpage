@@ -8,6 +8,17 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// URLからドメインを抽出（プロトコル＋ホスト名）
+function extractDomain(url) {
+  try {
+    const urlObj = new URL(url);
+    return `${urlObj.protocol}//${urlObj.hostname}`;
+  } catch (error) {
+    console.error('URLの解析に失敗しました:', url, error);
+    return null;
+  }
+}
+
 // リマインダーポップアップを作成
 function createReminderPopup(reminders) {
   // 既存のポップアップを削除
@@ -118,15 +129,37 @@ async function completeReminder(id, itemElement) {
   }
 }
 
+// URLがリマインダーとマッチするか判定
+function isUrlMatch(currentUrl, reminder) {
+  const matchType = reminder.matchType || 'domain'; // デフォルトはドメイン一致
+
+  switch (matchType) {
+    case 'exact':
+      // 完全一致
+      return currentUrl === reminder.url;
+
+    case 'prefix':
+      // 前方一致
+      return currentUrl.startsWith(reminder.url);
+
+    case 'domain':
+    default:
+      // ドメイン一致
+      const currentDomain = extractDomain(currentUrl);
+      const reminderDomain = extractDomain(reminder.url);
+      return currentDomain && reminderDomain && currentDomain === reminderDomain;
+  }
+}
+
 // 現在のURLに一致するリマインダーを取得
 async function getMatchingReminders(currentUrl) {
   try {
     const result = await chrome.storage.local.get(['reminders']);
     const reminders = result.reminders || [];
 
-    // 前方一致でフィルタリング
+    // 各リマインダーのmatchTypeに応じてフィルタリング
     const matchingReminders = reminders.filter(reminder =>
-      currentUrl.startsWith(reminder.url)
+      isUrlMatch(currentUrl, reminder)
     );
 
     return matchingReminders;

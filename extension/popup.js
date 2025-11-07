@@ -6,6 +6,27 @@ const registerForm = document.getElementById('registerForm');
 const messageDiv = document.getElementById('message');
 const remindersList = document.getElementById('remindersList');
 
+// 編集関連のDOM要素
+const editSection = document.getElementById('editSection');
+const registerSection = document.querySelector('.register-section');
+const listSection = document.querySelector('.list-section');
+const editUrlInput = document.getElementById('editUrlInput');
+const editTextInput = document.getElementById('editTextInput');
+const editCreatedAt = document.getElementById('editCreatedAt');
+const saveEditBtn = document.getElementById('saveEditBtn');
+const cancelEditBtn = document.getElementById('cancelEditBtn');
+const editForm = document.getElementById('editForm');
+const editMessageDiv = document.getElementById('editMessage');
+
+// 編集中のリマインダーID
+let currentEditingId = null;
+
+// 編集中のタブ情報を保持
+let editTabInfo = {
+  fullUrl: '',
+  domain: ''
+};
+
 // UUID生成関数
 function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -13,6 +34,17 @@ function generateUUID() {
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
+}
+
+// URLからドメインを抽出（プロトコル＋ホスト名）
+function extractDomain(url) {
+  try {
+    const urlObj = new URL(url);
+    return `${urlObj.protocol}//${urlObj.hostname}`;
+  } catch (error) {
+    console.error('URLの解析に失敗しました:', url, error);
+    return null;
+  }
 }
 
 // メッセージ表示関数
@@ -33,12 +65,26 @@ function validateForm() {
   registerBtn.disabled = !urlValue || !textValue;
 }
 
-// 現在のタブのURL取得
+// 現在のタブの情報を保持
+let currentTabInfo = {
+  fullUrl: '',
+  domain: ''
+};
+
+// 現在のタブのドメイン取得
 async function getCurrentTabUrl() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab && tab.url) {
-      urlInput.value = tab.url;
+      currentTabInfo.fullUrl = tab.url;
+      const domain = extractDomain(tab.url);
+      if (domain) {
+        currentTabInfo.domain = domain;
+        urlInput.value = domain;
+      } else {
+        currentTabInfo.domain = tab.url;
+        urlInput.value = tab.url; // ドメイン抽出失敗時はフルURLを使用
+      }
       validateForm();
     }
   } catch (error) {
@@ -46,8 +92,56 @@ async function getCurrentTabUrl() {
   }
 }
 
+// 照合方式に応じてURLを変換
+function updateUrlByMatchType() {
+  const selectedMatchType = document.querySelector('input[name="matchType"]:checked').value;
+
+  // URLが空の場合は何もしない
+  if (!currentTabInfo.fullUrl) {
+    return;
+  }
+
+  switch (selectedMatchType) {
+    case 'domain':
+      // ドメイン一致: プロトコル+ホスト名のみ
+      urlInput.value = currentTabInfo.domain;
+      break;
+    case 'prefix':
+    case 'exact':
+      // 前方一致・完全一致: フルURL
+      urlInput.value = currentTabInfo.fullUrl;
+      break;
+  }
+
+  validateForm();
+}
+
+// 編集フォームの照合方式に応じてURLを変換
+function updateEditUrlByMatchType() {
+  const selectedMatchType = document.querySelector('input[name="editMatchType"]:checked').value;
+
+  // URLが空の場合は何もしない
+  if (!editTabInfo.fullUrl) {
+    return;
+  }
+
+  switch (selectedMatchType) {
+    case 'domain':
+      // ドメイン一致: プロトコル+ホスト名のみ
+      editUrlInput.value = editTabInfo.domain;
+      break;
+    case 'prefix':
+    case 'exact':
+      // 前方一致・完全一致: フルURL
+      editUrlInput.value = editTabInfo.fullUrl;
+      break;
+  }
+
+  validateEditForm();
+}
+
 // リマインダー登録
-async function registerReminder(url, text) {
+async function registerReminder(url, text, matchType) {
   try {
     const result = await chrome.storage.local.get(['reminders']);
     const reminders = result.reminders || [];
@@ -56,6 +150,7 @@ async function registerReminder(url, text) {
       id: generateUUID(),
       url: url.trim(),
       text: text.trim(),
+      matchType: matchType || 'domain', // デフォルトはドメイン一致
       createdAt: new Date().toISOString()
     };
 
@@ -85,6 +180,123 @@ async function deleteReminder(id) {
     console.error('リマインダーの削除に失敗しました:', error);
     return false;
   }
+}
+
+// IDでリマインダーを取得
+async function getReminderById(id) {
+  try {
+    const result = await chrome.storage.local.get(['reminders']);
+    const reminders = result.reminders || [];
+    return reminders.find(reminder => reminder.id === id);
+  } catch (error) {
+    console.error('リマインダーの取得に失敗しました:', error);
+    return null;
+  }
+}
+
+// リマインダーを更新
+async function updateReminder(id, newUrl, newText, newMatchType) {
+  try {
+    const result = await chrome.storage.local.get(['reminders']);
+    const reminders = result.reminders || [];
+
+    const index = reminders.findIndex(r => r.id === id);
+
+    if (index === -1) {
+      throw new Error('リマインダーが見つかりません');
+    }
+
+    // URL、テキスト、照合方式を更新（id, createdAtは保持）
+    reminders[index].url = newUrl.trim();
+    reminders[index].text = newText.trim();
+    reminders[index].matchType = newMatchType || 'domain';
+
+    await chrome.storage.local.set({ reminders });
+
+    return true;
+  } catch (error) {
+    console.error('リマインダーの更新に失敗しました:', error);
+    throw error;
+  }
+}
+
+// 編集フォームを表示
+async function showEditForm(reminderId) {
+  const reminder = await getReminderById(reminderId);
+
+  if (!reminder) {
+    showMessage('リマインダーが見つかりません', 'error');
+    return;
+  }
+
+  // 編集用のタブ情報を取得
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab && tab.url) {
+      editTabInfo.fullUrl = tab.url;
+      const domain = extractDomain(tab.url);
+      editTabInfo.domain = domain || tab.url;
+    }
+  } catch (error) {
+    console.error('タブ情報の取得に失敗しました:', error);
+  }
+
+  // フォームに値を設定
+  editUrlInput.value = reminder.url;
+  editTextInput.value = reminder.text;
+  const createdDate = new Date(reminder.createdAt);
+  editCreatedAt.textContent = createdDate.toLocaleString('ja-JP');
+
+  // 照合方式を設定
+  const matchType = reminder.matchType || 'domain';
+  const matchTypeRadio = document.querySelector(`input[name="editMatchType"][value="${matchType}"]`);
+  if (matchTypeRadio) {
+    matchTypeRadio.checked = true;
+  }
+
+  // 編集中のIDを保持
+  currentEditingId = reminderId;
+
+  // UI切り替え
+  editSection.style.display = 'block';
+  registerSection.style.display = 'none';
+  listSection.style.display = 'none';
+
+  // バリデーション実行
+  validateEditForm();
+}
+
+// 編集をキャンセル
+function cancelEdit() {
+  // 編集中IDをクリア
+  currentEditingId = null;
+
+  // UI切り替え
+  editSection.style.display = 'none';
+  registerSection.style.display = 'block';
+  listSection.style.display = 'block';
+
+  // フォームをリセット
+  editForm.reset();
+  editMessageDiv.className = 'message';
+}
+
+// 編集フォームのバリデーション
+function validateEditForm() {
+  const urlValue = editUrlInput.value.trim();
+  const textValue = editTextInput.value.trim();
+
+  saveEditBtn.disabled = !urlValue || !textValue;
+}
+
+// 編集メッセージ表示関数
+function showEditMessage(text, type = 'success') {
+  editMessageDiv.textContent = text;
+  editMessageDiv.className = `message ${type}`;
+
+  setTimeout(() => {
+    editMessageDiv.className = 'message';
+  }, 3000);
 }
 
 // リマインダー一覧表示
@@ -138,9 +350,33 @@ async function displayReminders() {
         const createdDate = new Date(reminder.createdAt);
         date.textContent = `登録日時: ${createdDate.toLocaleString('ja-JP')}`;
 
+        // マッチング方式を表示
+        const matchType = document.createElement('span');
+        matchType.className = `reminder-match-type ${reminder.matchType || 'domain'}`;
+        const matchTypeLabels = {
+          'domain': 'ドメイン一致',
+          'prefix': '前方一致',
+          'exact': '完全一致'
+        };
+        matchType.textContent = matchTypeLabels[reminder.matchType || 'domain'];
+
         content.appendChild(text);
         content.appendChild(date);
+        content.appendChild(matchType);
 
+        // ボタングループ
+        const buttonsDiv = document.createElement('div');
+        buttonsDiv.className = 'reminder-buttons';
+
+        // 編集ボタン
+        const editBtn = document.createElement('button');
+        editBtn.className = 'edit-btn';
+        editBtn.textContent = '編集';
+        editBtn.addEventListener('click', () => {
+          showEditForm(reminder.id);
+        });
+
+        // 削除ボタン
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'delete-btn';
         deleteBtn.textContent = '削除';
@@ -154,8 +390,11 @@ async function displayReminders() {
           }
         });
 
+        buttonsDiv.appendChild(editBtn);
+        buttonsDiv.appendChild(deleteBtn);
+
         item.appendChild(content);
-        item.appendChild(deleteBtn);
+        item.appendChild(buttonsDiv);
         urlGroup.appendChild(item);
       });
 
@@ -173,13 +412,14 @@ registerForm.addEventListener('submit', async (e) => {
 
   const url = urlInput.value.trim();
   const text = textInput.value.trim();
+  const matchType = document.querySelector('input[name="matchType"]:checked').value;
 
   if (!url || !text) {
     showMessage('URLとリマインダー内容を入力してください', 'error');
     return;
   }
 
-  const success = await registerReminder(url, text);
+  const success = await registerReminder(url, text, matchType);
 
   if (success) {
     showMessage('リマインダーを登録しました', 'success');
@@ -191,12 +431,94 @@ registerForm.addEventListener('submit', async (e) => {
   }
 });
 
+// 既存リマインダーのマイグレーション（matchTypeフィールドがない場合に追加）
+async function migrateReminders() {
+  try {
+    const result = await chrome.storage.local.get(['reminders']);
+    const reminders = result.reminders || [];
+
+    let needsUpdate = false;
+    const migratedReminders = reminders.map(reminder => {
+      if (!reminder.matchType) {
+        needsUpdate = true;
+        return { ...reminder, matchType: 'domain' }; // デフォルトはドメイン一致
+      }
+      return reminder;
+    });
+
+    if (needsUpdate) {
+      await chrome.storage.local.set({ reminders: migratedReminders });
+      console.log('リマインダーのマイグレーションが完了しました');
+    }
+  } catch (error) {
+    console.error('マイグレーションに失敗しました:', error);
+  }
+}
+
 // 入力変更時のバリデーション
 urlInput.addEventListener('input', validateForm);
 textInput.addEventListener('input', validateForm);
 
+// 照合方式変更時にURLを自動変換
+document.querySelectorAll('input[name="matchType"]').forEach(radio => {
+  radio.addEventListener('change', updateUrlByMatchType);
+});
+
+// 編集フォーム送信ハンドラ
+editForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const url = editUrlInput.value.trim();
+  const text = editTextInput.value.trim();
+  const matchType = document.querySelector('input[name="editMatchType"]:checked').value;
+
+  if (!url || !text) {
+    showEditMessage('URLとリマインダー内容を入力してください', 'error');
+    return;
+  }
+
+  if (!currentEditingId) {
+    showEditMessage('編集対象のリマインダーが見つかりません', 'error');
+    return;
+  }
+
+  try {
+    await updateReminder(currentEditingId, url, text, matchType);
+    showEditMessage('リマインダーを更新しました', 'success');
+
+    // 少し待ってから一覧に戻る
+    setTimeout(() => {
+      cancelEdit();
+      displayReminders();
+    }, 1000);
+  } catch (error) {
+    if (error.message === 'リマインダーが見つかりません') {
+      showEditMessage('このリマインダーは既に削除されています', 'error');
+      setTimeout(() => {
+        cancelEdit();
+        displayReminders();
+      }, 2000);
+    } else {
+      showEditMessage('更新に失敗しました', 'error');
+    }
+  }
+});
+
+// 編集キャンセルボタン
+cancelEditBtn.addEventListener('click', cancelEdit);
+
+// 編集フォームの入力変更時のバリデーション
+editUrlInput.addEventListener('input', validateEditForm);
+editTextInput.addEventListener('input', validateEditForm);
+
+// 編集フォームの照合方式変更時にURLを自動変換
+document.querySelectorAll('input[name="editMatchType"]').forEach(radio => {
+  radio.addEventListener('change', updateEditUrlByMatchType);
+});
+
 // 初期化
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  await migrateReminders(); // マイグレーション実行
   getCurrentTabUrl();
   displayReminders();
   validateForm();
