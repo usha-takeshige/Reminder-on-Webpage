@@ -21,6 +21,12 @@ const editMessageDiv = document.getElementById('editMessage');
 // 編集中のリマインダーID
 let currentEditingId = null;
 
+// 編集中のタブ情報を保持
+let editTabInfo = {
+  fullUrl: '',
+  domain: ''
+};
+
 // UUID生成関数
 function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -59,15 +65,24 @@ function validateForm() {
   registerBtn.disabled = !urlValue || !textValue;
 }
 
+// 現在のタブの情報を保持
+let currentTabInfo = {
+  fullUrl: '',
+  domain: ''
+};
+
 // 現在のタブのドメイン取得
 async function getCurrentTabUrl() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab && tab.url) {
+      currentTabInfo.fullUrl = tab.url;
       const domain = extractDomain(tab.url);
       if (domain) {
+        currentTabInfo.domain = domain;
         urlInput.value = domain;
       } else {
+        currentTabInfo.domain = tab.url;
         urlInput.value = tab.url; // ドメイン抽出失敗時はフルURLを使用
       }
       validateForm();
@@ -75,6 +90,54 @@ async function getCurrentTabUrl() {
   } catch (error) {
     console.error('URLの取得に失敗しました:', error);
   }
+}
+
+// 照合方式に応じてURLを変換
+function updateUrlByMatchType() {
+  const selectedMatchType = document.querySelector('input[name="matchType"]:checked').value;
+
+  // URLが空の場合は何もしない
+  if (!currentTabInfo.fullUrl) {
+    return;
+  }
+
+  switch (selectedMatchType) {
+    case 'domain':
+      // ドメイン一致: プロトコル+ホスト名のみ
+      urlInput.value = currentTabInfo.domain;
+      break;
+    case 'prefix':
+    case 'exact':
+      // 前方一致・完全一致: フルURL
+      urlInput.value = currentTabInfo.fullUrl;
+      break;
+  }
+
+  validateForm();
+}
+
+// 編集フォームの照合方式に応じてURLを変換
+function updateEditUrlByMatchType() {
+  const selectedMatchType = document.querySelector('input[name="editMatchType"]:checked').value;
+
+  // URLが空の場合は何もしない
+  if (!editTabInfo.fullUrl) {
+    return;
+  }
+
+  switch (selectedMatchType) {
+    case 'domain':
+      // ドメイン一致: プロトコル+ホスト名のみ
+      editUrlInput.value = editTabInfo.domain;
+      break;
+    case 'prefix':
+    case 'exact':
+      // 前方一致・完全一致: フルURL
+      editUrlInput.value = editTabInfo.fullUrl;
+      break;
+  }
+
+  validateEditForm();
 }
 
 // リマインダー登録
@@ -132,7 +195,7 @@ async function getReminderById(id) {
 }
 
 // リマインダーを更新
-async function updateReminder(id, newUrl, newText) {
+async function updateReminder(id, newUrl, newText, newMatchType) {
   try {
     const result = await chrome.storage.local.get(['reminders']);
     const reminders = result.reminders || [];
@@ -143,9 +206,10 @@ async function updateReminder(id, newUrl, newText) {
       throw new Error('リマインダーが見つかりません');
     }
 
-    // URLとテキストのみ更新（id, createdAtは保持）
+    // URL、テキスト、照合方式を更新（id, createdAtは保持）
     reminders[index].url = newUrl.trim();
     reminders[index].text = newText.trim();
+    reminders[index].matchType = newMatchType || 'domain';
 
     await chrome.storage.local.set({ reminders });
 
@@ -165,11 +229,30 @@ async function showEditForm(reminderId) {
     return;
   }
 
+  // 編集用のタブ情報を取得
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab && tab.url) {
+      editTabInfo.fullUrl = tab.url;
+      const domain = extractDomain(tab.url);
+      editTabInfo.domain = domain || tab.url;
+    }
+  } catch (error) {
+    console.error('タブ情報の取得に失敗しました:', error);
+  }
+
   // フォームに値を設定
   editUrlInput.value = reminder.url;
   editTextInput.value = reminder.text;
   const createdDate = new Date(reminder.createdAt);
   editCreatedAt.textContent = createdDate.toLocaleString('ja-JP');
+
+  // 照合方式を設定
+  const matchType = reminder.matchType || 'domain';
+  const matchTypeRadio = document.querySelector(`input[name="editMatchType"][value="${matchType}"]`);
+  if (matchTypeRadio) {
+    matchTypeRadio.checked = true;
+  }
 
   // 編集中のIDを保持
   currentEditingId = reminderId;
@@ -376,12 +459,18 @@ async function migrateReminders() {
 urlInput.addEventListener('input', validateForm);
 textInput.addEventListener('input', validateForm);
 
+// 照合方式変更時にURLを自動変換
+document.querySelectorAll('input[name="matchType"]').forEach(radio => {
+  radio.addEventListener('change', updateUrlByMatchType);
+});
+
 // 編集フォーム送信ハンドラ
 editForm.addEventListener('submit', async (e) => {
   e.preventDefault();
 
   const url = editUrlInput.value.trim();
   const text = editTextInput.value.trim();
+  const matchType = document.querySelector('input[name="editMatchType"]:checked').value;
 
   if (!url || !text) {
     showEditMessage('URLとリマインダー内容を入力してください', 'error');
@@ -394,7 +483,7 @@ editForm.addEventListener('submit', async (e) => {
   }
 
   try {
-    await updateReminder(currentEditingId, url, text);
+    await updateReminder(currentEditingId, url, text, matchType);
     showEditMessage('リマインダーを更新しました', 'success');
 
     // 少し待ってから一覧に戻る
@@ -421,6 +510,11 @@ cancelEditBtn.addEventListener('click', cancelEdit);
 // 編集フォームの入力変更時のバリデーション
 editUrlInput.addEventListener('input', validateEditForm);
 editTextInput.addEventListener('input', validateEditForm);
+
+// 編集フォームの照合方式変更時にURLを自動変換
+document.querySelectorAll('input[name="editMatchType"]').forEach(radio => {
+  radio.addEventListener('change', updateEditUrlByMatchType);
+});
 
 // 初期化
 document.addEventListener('DOMContentLoaded', async () => {
